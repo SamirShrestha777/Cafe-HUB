@@ -193,3 +193,79 @@ def db_save_order(user_email: str, cart: dict) -> int:
     conn.commit()
     conn.close()
     return order_id
+
+
+# Colors
+
+BG_CREAM = "#fdf8f3"
+BG_FORM = "#fdf4e7"
+GREEN_DARK = "#2d5a27"
+GREEN_MED = "#4a7c40"
+BROWN = "#3b1f0a"
+ORANGE = "#f5a623"
+ORANGE_HOV = "#e09420"
+GRAY_LIGHT = "#e8e0d6"
+GRAY_TEXT = "#888"
+WHITE = "#ffffff"
+MENU_RED = "#8b1a1a"
+SPEC_RED = "#8b1a1a"
+STAR_CLR = "#f5a623"
+BAG_BG = "#f5f5f5"
+
+# image helper
+
+
+def make_circle_image(path: str, size: int):
+    """Create a circular cropped image. Returns PhotoImage or None."""
+    if not os.path.exists(path):
+        if DEBUG_IMAGES:
+            print(f"⚠️  Circle image not found: {path}")
+        return None
+    try:
+        img = Image.open(path).convert("RGBA").resize(
+            (size, size), Image.LANCZOS)
+        mask = Image.new("L", (size, size), 0)
+        ImageDraw.Draw(mask).ellipse((0, 0, size, size), fill=255)
+        result = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        result.paste(img, mask=mask)
+        return ImageTk.PhotoImage(result)
+    except Exception as e:
+        if DEBUG_IMAGES:
+            print(f"❌ Error loading circle image {path}: {e}")
+        return None
+
+
+def load_img_wh(filename, w, h, circle=False, cache=None):
+    """Load an image resized to w×h, optionally circular cropped. Uses cache dict."""
+    key = (filename, w, h, circle)
+    if cache is not None and key in cache:
+        return cache[key]
+
+    path = asset(filename)
+    if not os.path.exists(path):
+        if cache is not None:
+            cache[key] = None
+        if DEBUG_IMAGES:
+            print(f"⚠️  Image not found: {filename}")
+        return None
+
+    try:
+        img = Image.open(path).convert("RGBA").resize((w, h), Image.LANCZOS)
+        if circle:
+            mask = Image.new("L", (w, h), 0)
+            ImageDraw.Draw(mask).ellipse((0, 0, w, h), fill=255)
+            out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+            out.paste(img, mask=mask)
+            img = out
+        ph = ImageTk.PhotoImage(img)
+        if cache is not None:
+            cache[key] = ph
+        if DEBUG_IMAGES:
+            print(f"✓ Loaded image: {filename}")
+        return ph
+    except Exception as e:
+        if cache is not None:
+            cache[key] = None
+        if DEBUG_IMAGES:
+            print(f"❌ Error loading image {filename}: {e}")
+        return None
