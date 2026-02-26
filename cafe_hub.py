@@ -32,3 +32,52 @@ def validate_email(email: str) -> tuple:
     if not re.match(email_pattern, email.lower()):
         return False, "Invalid email format. Use format: username@gmail.com"
     return True, ""
+
+
+def validate_password(password: str) -> tuple:
+    """
+    Validate password:
+    - Minimum 8 characters
+    - At least one uppercase letter
+    - At least one number
+    - At least one special character
+    """
+    if not password:
+        return False, "Password is required."
+
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long."
+
+    if not re.search(r'[A-Z]', password):
+        return False, "Password must contain at least one uppercase letter (A-Z)."
+
+    if not re.search(r'[0-9]', password):
+        return False, "Password must contain at least one number (0-9)."
+
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\\/`~]', password):
+        return False, "Password must contain at least one special character (!@#$%^&* etc.)."
+
+    return True, ""
+
+
+# 2 database one for login and another for order so that the data doesnt conflict
+LOGIN_DB = os.path.join(BASE_DIR, "login.db")
+ORDERS_DB = os.path.join(BASE_DIR, "orders.db")
+
+
+def init_login_db():
+    """Create login.db and the users table."""
+    conn = sqlite3.connect(LOGIN_DB)
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            name       TEXT    NOT NULL,
+            email      TEXT    NOT NULL UNIQUE,
+            password   TEXT    NOT NULL,
+            reset_code TEXT,
+            created    DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
