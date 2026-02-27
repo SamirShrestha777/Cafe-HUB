@@ -6,6 +6,7 @@ import hashlib
 import datetime
 from PIL import Image, ImageTk, ImageDraw
 import sys
+import re
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEBUG_IMAGES = True  # Set to False to disable image debug messages
@@ -17,10 +18,50 @@ def asset(filename: str) -> str:
         print(f"⚠️  Image not found: {path}")
         print(f"   Looking in: {BASE_DIR}")
     return path
+# Validation
 
-# SEPARATE DATABASES
 
-LOGIN_DB  = os.path.join(BASE_DIR, "login.db")
+def validate_email(email: str) -> tuple:
+    """Validate email must contain @gmail.com"""
+    if not email:
+        return False, "Email is required."
+    if "@gmail.com" not in email.lower():
+        return False, "Email must be a Gmail address (@gmail.com)."
+    # Basic email format check
+    email_pattern = r'^[a-zA-Z0-9._%+-]+@gmail\.com$'
+    if not re.match(email_pattern, email.lower()):
+        return False, "Invalid email format. Use format: username@gmail.com"
+    return True, ""
+
+
+def validate_password(password: str) -> tuple:
+    """
+    Validate password:
+    - Minimum 8 characters
+    - At least one uppercase letter
+    - At least one number
+    - At least one special character
+    """
+    if not password:
+        return False, "Password is required."
+
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long."
+
+    if not re.search(r'[A-Z]', password):
+        return False, "Password must contain at least one uppercase letter (A-Z)."
+
+    if not re.search(r'[0-9]', password):
+        return False, "Password must contain at least one number (0-9)."
+
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\\/`~]', password):
+        return False, "Password must contain at least one special character (!@#$%^&* etc.)."
+
+    return True, ""
+
+
+# 2 database one for login and another for order so that the data doesnt conflict
+LOGIN_DB = os.path.join(BASE_DIR, "login.db")
 ORDERS_DB = os.path.join(BASE_DIR, "orders.db")
 
 
@@ -41,8 +82,7 @@ def init_login_db():
     conn.commit()
     conn.close()
 
-
-def init_orders_db():
+    def init_orders_db():
     """Create orders.db and the orders / order_items tables."""
     conn = sqlite3.connect(ORDERS_DB)
     c = conn.cursor()
@@ -73,9 +113,8 @@ def init_orders_db():
 
 def hash_password(pw: str) -> str:
     return hashlib.sha256(pw.encode()).hexdigest()
+# login DB
 
-
-# Login DB helpers
 
 def db_register(name: str, email: str, password: str, reset_code: str = ""):
     try:
@@ -131,12 +170,12 @@ def db_update_password(email: str, new_password: str):
         return False, f"Error updating password: {e}"
 
 
-# Orders DB helpers
+# Database helper
 
 def db_save_order(user_email: str, cart: dict) -> int:
     """Persist order to orders.db and return the new order id."""
-    subtotal    = sum(d["qty"] * d["price"] for d in cart.values())
-    vat         = round(subtotal * 0.13, 2)
+    subtotal = sum(d["qty"] * d["price"] for d in cart.values())
+    vat = round(subtotal * 0.13, 2)
     service_tax = round(subtotal * 0.10, 2)
     grand_total = round(subtotal + vat + service_tax, 2)
 
@@ -156,25 +195,25 @@ def db_save_order(user_email: str, cart: dict) -> int:
     return order_id
 
 
-# COLOR / STYLE CONSTANTS
+# Colors
 
-BG_CREAM   = "#fdf8f3"
-BG_FORM    = "#fdf4e7"
+BG_CREAM = "#fdf8f3"
+BG_FORM = "#fdf4e7"
 GREEN_DARK = "#2d5a27"
-GREEN_MED  = "#4a7c40"
-BROWN      = "#3b1f0a"
-ORANGE     = "#f5a623"
+GREEN_MED = "#4a7c40"
+BROWN = "#3b1f0a"
+ORANGE = "#f5a623"
 ORANGE_HOV = "#e09420"
 GRAY_LIGHT = "#e8e0d6"
-GRAY_TEXT  = "#888"
-WHITE      = "#ffffff"
-MENU_RED   = "#8b1a1a"
-SPEC_RED   = "#8b1a1a"
-STAR_CLR   = "#f5a623"
-BAG_BG     = "#f5f5f5"
+GRAY_TEXT = "#888"
+WHITE = "#ffffff"
+MENU_RED = "#8b1a1a"
+SPEC_RED = "#8b1a1a"
+STAR_CLR = "#f5a623"
+BAG_BG = "#f5f5f5"
 
+# image helper
 
-# IMPROVED IMAGE HELPERS WITH BETTER ERROR HANDLING
 
 def make_circle_image(path: str, size: int):
     """Create a circular cropped image. Returns PhotoImage or None."""
@@ -183,7 +222,8 @@ def make_circle_image(path: str, size: int):
             print(f"⚠️  Circle image not found: {path}")
         return None
     try:
-        img = Image.open(path).convert("RGBA").resize((size, size), Image.LANCZOS)
+        img = Image.open(path).convert("RGBA").resize(
+            (size, size), Image.LANCZOS)
         mask = Image.new("L", (size, size), 0)
         ImageDraw.Draw(mask).ellipse((0, 0, size, size), fill=255)
         result = Image.new("RGBA", (size, size), (0, 0, 0, 0))
@@ -200,7 +240,7 @@ def load_img_wh(filename, w, h, circle=False, cache=None):
     key = (filename, w, h, circle)
     if cache is not None and key in cache:
         return cache[key]
-    
+
     path = asset(filename)
     if not os.path.exists(path):
         if cache is not None:
@@ -208,7 +248,7 @@ def load_img_wh(filename, w, h, circle=False, cache=None):
         if DEBUG_IMAGES:
             print(f"⚠️  Image not found: {filename}")
         return None
-    
+
     try:
         img = Image.open(path).convert("RGBA").resize((w, h), Image.LANCZOS)
         if circle:
@@ -230,17 +270,17 @@ def load_img_wh(filename, w, h, circle=False, cache=None):
             print(f"❌ Error loading image {filename}: {e}")
         return None
 
-
-# PLACEHOLDER ENTRY WIDGET  (kept as a class – it extends tk.Entry)
+# place_holder entry wg
 
 class PlaceholderEntry(tk.Entry):
     def __init__(self, master, placeholder, icon="", show_char="", **kw):
         super().__init__(master, **kw)
         self.placeholder = placeholder
-        self.show_char   = show_char
-        self._active     = False
+        self.show_char = show_char
+        self._active = False
         self.configure(fg=GRAY_TEXT, font=("Georgia", 11))
-        self.insert(0, f"  {icon}  {placeholder}" if icon else f"  {placeholder}")
+        self.insert(
+            0, f"  {icon}  {placeholder}" if icon else f"  {placeholder}")
         self.bind("<FocusIn>",  self._on_focus_in)
         self.bind("<FocusOut>", self._on_focus_out)
 
@@ -264,8 +304,7 @@ class PlaceholderEntry(tk.Entry):
         return self.get() if self._active else ""
 
 
-# MENU / SPECIAL DATA
-
+# Menu
 MENU_DATA = [
     ("MO:MO", [
         {"name": "Chicken Mo:Mo",  "emoji": "🥟", "img": "chickenmomo.jpg",      "price": 180,
@@ -346,15 +385,13 @@ SPECIAL_ITEMS = [
     {"name": "FRENCH FRIES", "price": 180, "img": "frenchfries.jpg",  "emoji": "🍟",
      "desc": ("Golden, crispy shoestring fries seasoned with sea salt and our secret spice blend. "
               "The perfect companion to any meal or a satisfying snack on their own.")},
-    {"name": "BURGER",       "price": 380, "img": "chickenburger.jpg","emoji": "🍔",
+    {"name": "BURGER",       "price": 380, "img": "chickenburger.jpg", "emoji": "🍔",
      "desc": ("A towering juicy chicken patty with crisp lettuce, ripe tomato, gherkins and our "
               "signature mayo sauce, all tucked inside a toasted brioche bun. Pure comfort in every bite.")},
 ]
 
+# About page
 
-# PAGE BUILDER FUNCTIONS  
-
-# ABOUT PAGE
 
 def make_about_page(parent):
     BODY = (
@@ -376,7 +413,7 @@ def make_about_page(parent):
 
     f = tk.Frame(parent, bg=WHITE)
 
-    # "ABOUT US" heading
+    # About us label
     tk.Label(f, text="ABOUT US",
              font=("PixelPurl", 22, "bold"),
              bg=WHITE, fg="#8b0000",
@@ -388,7 +425,8 @@ def make_about_page(parent):
     # Left photo
     img_lbl = tk.Label(f, bg="#2a2a2a")
     img_lbl.place(x=16, y=80, width=390, height=460)
-    fallback = tk.Label(img_lbl, text="🍽️", bg="#2a2a2a", font=("Segoe UI Emoji", 60))
+    fallback = tk.Label(img_lbl, text="🍽️", bg="#2a2a2a",
+                        font=("Segoe UI Emoji", 60))
     fallback.place(relx=.5, rely=.5, anchor="center")
 
     # Keep PhotoImage alive via frame attribute
@@ -396,7 +434,8 @@ def make_about_page(parent):
     path = asset("soft.jpg")
     if os.path.exists(path):
         try:
-            img = Image.open(path).convert("RGB").resize((390, 460), Image.LANCZOS)
+            img = Image.open(path).convert(
+                "RGB").resize((390, 460), Image.LANCZOS)
             photo_ref[0] = ImageTk.PhotoImage(img)
             img_lbl.configure(image=photo_ref[0])
             fallback.place_forget()
@@ -417,7 +456,8 @@ def make_about_page(parent):
     right.bind("<Configure>",
                lambda e, lbl=body_lbl: lbl.configure(wraplength=max(200, e.width - 30)))
 
-    tk.Frame(right, bg=GRAY_LIGHT, height=1).pack(fill="x", padx=10, pady=(0, 18))
+    tk.Frame(right, bg=GRAY_LIGHT, height=1).pack(
+        fill="x", padx=10, pady=(0, 18))
 
     for item in BULLETS:
         row = tk.Frame(right, bg=WHITE)
@@ -429,12 +469,12 @@ def make_about_page(parent):
 
     return f
 
-
-# CONTACT PAGE
+# contact page
 
 def make_contact_page(parent):
     CARDS = [
-        ("location.png", "📍", "OUR ADDRESS",   "Softwarica College,",       "Dillibazar, Kathmandu"),
+        ("location.png", "📍", "OUR ADDRESS",
+         "Softwarica College,",       "Dillibazar, Kathmandu"),
         ("mail.png",     "✉",  "EMAIL ADDRESS", "caferica@gmail.com",         ""),
         ("phone.png",    "📞", "PHONE NUMBER",  "01–55440288 / 9878453365",   ""),
         ("clock.png",    "🕐", "OPENING TIME",  "9 AM  –  5 PM",              ""),
@@ -442,7 +482,7 @@ def make_contact_page(parent):
 
     f = tk.Frame(parent, bg=WHITE)
 
-    #  "CONTACT" heading  ── same font / colour / style as "ABOUT US" 
+    # Contact heading
     tk.Label(f, text="CONTACT",
              font=("PixelPurl", 22, "bold"),
              bg=WHITE, fg="#8b0000",
@@ -455,9 +495,9 @@ def make_contact_page(parent):
     outer = tk.Frame(f, bg=WHITE)
     outer.place(relx=0.5, rely=0.5, anchor="center")
 
-    RED_CLR     = "#e03a2e"
+    RED_CLR = "#e03a2e"
     CARD_BG_LOC = "#e8e4de"
-    icon_refs   = []   # prevent GC of PhotoImages
+    icon_refs = []   # prevent GC of PhotoImages
 
     for img_file, emoji, title, val1, val2 in CARDS:
         card = tk.Frame(outer, bg=CARD_BG_LOC,
@@ -472,7 +512,8 @@ def make_contact_page(parent):
         icon_ph = None
         if os.path.exists(icon_path):
             try:
-                ico = Image.open(icon_path).convert("RGBA").resize((80, 80), Image.LANCZOS)
+                ico = Image.open(icon_path).convert(
+                    "RGBA").resize((80, 80), Image.LANCZOS)
                 icon_ph = ImageTk.PhotoImage(ico)
                 icon_refs.append(icon_ph)
                 if DEBUG_IMAGES:
@@ -491,7 +532,8 @@ def make_contact_page(parent):
             cv = tk.Canvas(card, width=cv_sz, height=cv_sz,
                            bg=CARD_BG_LOC, bd=0, highlightthickness=0)
             cv.pack(pady=(22, 0))
-            cv.create_oval(3, 3, cv_sz - 3, cv_sz - 3, fill="#e03a2e", outline="")
+            cv.create_oval(3, 3, cv_sz - 3, cv_sz - 3,
+                           fill="#e03a2e", outline="")
             cv.create_text(cv_sz // 2, cv_sz // 2, text=emoji,
                            font=("Segoe UI Emoji", 28), fill=WHITE)
 
@@ -511,32 +553,31 @@ def make_contact_page(parent):
     f._icon_refs = icon_refs   # GC guard
     return f
 
-
-# DASHBOARD PAGE
+# Dashboard Page
 
 def make_dashboard_page(parent, app):
     """Logged-in home page with user options"""
     f = tk.Frame(parent, bg=BG_CREAM)
     name_var = tk.StringVar(value="")
-    
+
     # Header section
     header = tk.Frame(f, bg=BG_CREAM)
     header.pack(fill="x", pady=(40, 20))
-    
+
     tk.Label(header, textvariable=name_var,
              font=("Georgia", 32, "bold"),
              bg=BG_CREAM, fg=BROWN).pack()
     tk.Label(header, text="Welcome back to CafeHub! ☕",
              font=("Georgia", 18),
              bg=BG_CREAM, fg=GREEN_MED).pack(pady=(5, 0))
-    
+
     # Divider
     tk.Frame(f, bg=GRAY_LIGHT, height=2).pack(fill="x", padx=100, pady=30)
-    
+
     # Quick actions section
     actions_frame = tk.Frame(f, bg=BG_CREAM)
     actions_frame.pack(expand=True)
-    
+
     # Create action cards
     actions = [
         ("🍽️", "Browse Menu", "menu", ORANGE),
@@ -545,8 +586,7 @@ def make_dashboard_page(parent, app):
         ("ℹ️", "About Us", "about", "#8b1a1a"),
     ]
 
-# HOME PAGE  (Login / Sign-up  +  About Us blurb)
-
+# HOME PAGE  
 def make_home_page(parent, app):
     MODE_LOGIN  = "login"
     MODE_SIGNUP = "signup"
@@ -952,4 +992,4 @@ def make_home_page(parent, app):
     submit_btn.configure(command=on_submit)
     forgot_lbl.bind("<Button-1>", lambda e: forgot_password())
 
-    return f
+    return 
