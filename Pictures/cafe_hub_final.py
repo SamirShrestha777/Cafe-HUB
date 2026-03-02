@@ -66,7 +66,7 @@ ORDERS_DB = os.path.join(BASE_DIR, "orders.db")
 
 
 def init_login_db():
-    """Create login.db and the users table."""
+    """this function is for creating login.db and the users table."""
     conn = sqlite3.connect(LOGIN_DB)
     c = conn.cursor()
     c.execute("""
@@ -84,7 +84,7 @@ def init_login_db():
 
 
 def init_orders_db():
-    """Create orders.db and the orders / order_items tables."""
+    """this function is for creating orders.db and the orders / order_items tables."""
     conn = sqlite3.connect(ORDERS_DB)
     c = conn.cursor()
     c.execute("""
