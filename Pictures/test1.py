@@ -2058,7 +2058,6 @@ def run_app():
         print("="*60 + "\n")
 
     navigate("home")
-    root.mainloop()
 
 
 # Entry point
