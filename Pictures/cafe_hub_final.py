@@ -1005,6 +1005,12 @@ def make_home_page(parent, app):
                 confirm_pw_label.pack(fill="x", pady=(15, 2))
                 confirm_pw_entry.pack(fill="x", ipady=4)
 
+                # Expand window to fit the new password fields
+                new_height = 520
+                x = (win.winfo_screenwidth() - win_width) // 2
+                y = (win.winfo_screenheight() - new_height) // 2
+                win.geometry(f"{win_width}x{new_height}+{x}+{y}")
+
                 verify_btn.pack_forget()
                 update_btn.pack(side="left", padx=5)
                 cancel_btn.configure(text="Cancel",
