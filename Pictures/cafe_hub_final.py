@@ -171,6 +171,26 @@ def db_update_password(email: str, new_password: str):
         return False, f"Error updating password: {e}"
 
 
+def db_delete_account(email: str, reset_code: str):
+    """Verify reset code and permanently delete the user account."""
+    try:
+        conn = sqlite3.connect(LOGIN_DB)
+        c = conn.cursor()
+        c.execute("SELECT id FROM users WHERE email=? AND reset_code=?",
+                  (email, reset_code))
+        row = c.fetchone()
+        if not row:
+            conn.close()
+            return False, "Invalid email or reset code."
+        c.execute("DELETE FROM users WHERE email=? AND reset_code=?",
+                  (email, reset_code))
+        conn.commit()
+        conn.close()
+        return True, "Account deleted successfully."
+    except Exception as e:
+        return False, f"Error deleting account: {e}"
+
+
 # Database helper
 
 def db_save_order(user_email: str, cart: dict) -> int:
@@ -629,7 +649,7 @@ def make_dashboard_page(parent, app):
         card.bind("<Enter>", on_enter)
         card.bind("<Leave>", on_leave)
 
-    # Bottom section with logout
+    # Bottom section with logout and delete account
     bottom = tk.Frame(f, bg=BG_CREAM)
     bottom.pack(side="bottom", pady=40)
 
@@ -639,13 +659,135 @@ def make_dashboard_page(parent, app):
               activebackground="#6b1010", activeforeground=WHITE,
               relief="flat", cursor="hand2",
               padx=40, pady=12,
-              command=lambda: logout(app)).pack()
+              command=lambda: logout(app)).pack(side="left", padx=12)
+
+    tk.Button(bottom, text="🗑️  Delete Account",
+              font=("Georgia", 13, "bold"),
+              bg="#4a4a4a", fg=WHITE,
+              activebackground="#2a2a2a", activeforeground=WHITE,
+              relief="flat", cursor="hand2",
+              padx=24, pady=12,
+              command=lambda: delete_account_dialog(app)).pack(side="left", padx=12)
 
     def logout(app):
         if messagebox.askyesno("Logout", "Are you sure you want to log out?"):
             app["_logged_in_user"] = None
             app["_login_email"] = None
             app["navigate"]("home")
+
+    def delete_account_dialog(app):
+        win = tk.Toplevel(app["root"])
+        win.title("Delete Account")
+
+        win_width = 420
+        win_height = 380
+        x = (win.winfo_screenwidth() - win_width) // 2
+        y = (win.winfo_screenheight() - win_height) // 2
+        win.geometry(f"{win_width}x{win_height}+{x}+{y}")
+        win.configure(bg=BG_CREAM)
+        win.resizable(False, False)
+        win.grab_set()
+
+        # Header stripe + title
+        tk.Frame(win, bg="#8b1a1a", height=4).pack(fill="x")
+        tk.Label(win, text="🗑️  Delete Account",
+                 font=("Georgia", 16, "bold"),
+                 bg=BG_CREAM, fg="#8b1a1a").pack(pady=(20, 6))
+        tk.Label(win,
+                 text="This action is permanent and cannot be undone.",
+                 font=("Georgia", 10, "italic"),
+                 bg=BG_CREAM, fg=GRAY_TEXT).pack()
+
+        # Warning box
+        warn_frame = tk.Frame(win, bg="#fff3cd",
+                              highlightbackground="#f0ad4e",
+                              highlightthickness=1)
+        warn_frame.pack(padx=40, pady=(12, 0), fill="x")
+        tk.Label(warn_frame,
+                 text="⚠️  All your account data will be permanently removed.",
+                 font=("Georgia", 9),
+                 bg="#fff3cd", fg="#856404",
+                 wraplength=320).pack(padx=10, pady=8)
+
+        # Form
+        form = tk.Frame(win, bg=BG_CREAM)
+        form.pack(pady=16, padx=40, fill="x")
+
+        tk.Label(form, text="Email:", font=("Georgia", 10, "bold"),
+                 bg=BG_CREAM, fg=BROWN, anchor="w").pack(fill="x", pady=(5, 2))
+        email_var = tk.StringVar()
+        email_entry = tk.Entry(form, textvariable=email_var,
+                               font=("Georgia", 11), relief="solid", bd=1)
+        email_entry.pack(fill="x", ipady=4)
+
+        tk.Label(form, text="6-Digit Reset Code:", font=("Georgia", 10, "bold"),
+                 bg=BG_CREAM, fg=BROWN, anchor="w").pack(fill="x", pady=(14, 2))
+        code_var = tk.StringVar()
+        code_entry = tk.Entry(form, textvariable=code_var,
+                              font=("Georgia", 11), relief="solid", bd=1, show="*")
+        code_entry.pack(fill="x", ipady=4)
+
+        # Pre-fill email if known from session
+        if app.get("_login_email"):
+            email_var.set(app["_login_email"])
+
+        # Buttons
+        btn_frame = tk.Frame(win, bg=BG_CREAM)
+        btn_frame.pack(pady=6)
+
+        def confirm_delete():
+            email = email_var.get().strip()
+            code = code_var.get().strip()
+
+            if not email or not code:
+                messagebox.showwarning("Missing Information",
+                                       "Please enter both your email and reset code.",
+                                       parent=win)
+                return
+
+            if len(code) != 6 or not code.isdigit():
+                messagebox.showerror("Invalid Code",
+                                     "Reset code must be exactly 6 digits.",
+                                     parent=win)
+                return
+
+            confirmed = messagebox.askyesno(
+                "Confirm Deletion",
+                f"Are you absolutely sure you want to delete the account for:\n\n"
+                f"  {email}\n\n"
+                "This cannot be undone.",
+                icon="warning",
+                parent=win
+            )
+            if not confirmed:
+                return
+
+            success, message = db_delete_account(email, code)
+            if success:
+                win.destroy()
+                app["_logged_in_user"] = None
+                app["_login_email"] = None
+                messagebox.showinfo("Account Deleted",
+                                    "Your account has been permanently deleted.\n"
+                                    "We're sorry to see you go. 👋")
+                app["navigate"]("home")
+            else:
+                messagebox.showerror("Failed", message, parent=win)
+
+        tk.Button(btn_frame, text="🗑️  Delete My Account",
+                  font=("Georgia", 11, "bold"),
+                  bg="#8b1a1a", fg=WHITE,
+                  activebackground="#6b1010", activeforeground=WHITE,
+                  relief="flat", cursor="hand2",
+                  padx=18, pady=8,
+                  command=confirm_delete).pack(side="left", padx=6)
+
+        tk.Button(btn_frame, text="Cancel",
+                  font=("Georgia", 11),
+                  bg=GRAY_LIGHT, fg=BROWN,
+                  relief="flat", cursor="hand2",
+                  padx=18, pady=8,
+                  command=win.destroy).pack(side="left", padx=6)
 
     def set_user(name: str):
         name_var.set(f"Hello, {name}! 👋")
